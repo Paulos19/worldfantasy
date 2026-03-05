@@ -30,12 +30,14 @@ model AgentContext {
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  companyName   String @default("World Fantasy")
-  personality   String @db.Text // Tom de voz, guardrails, diretrizes
-  knowledgeBase String @db.Text // Catálogo, preços, regras de negócio
+  // Novo campo: O nome exato da instância na Evolution API (Ex: "Henrique")
+  whatsappInstance String? @unique
 
-  isActive  Boolean  @default(true)
-  updatedAt DateTime @updatedAt
+  companyName   String   @default("World Fantasy")
+  personality   String   @db.Text
+  knowledgeBase String   @db.Text
+  isActive      Boolean  @default(true)
+  updatedAt     DateTime @updatedAt
 }
 
 model ChatLog {

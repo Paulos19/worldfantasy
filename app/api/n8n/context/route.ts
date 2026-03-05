@@ -1,45 +1,42 @@
-// app/api/n8n/context/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
-        const userId = searchParams.get("userId");
+        const instance = searchParams.get("instance"); // Agora buscamos pela instância
 
-        // 1. Segurança Básica (Opcional, mas altamente recomendado)
-        // No n8n, você configurará o Header: Authorization -> Bearer SUA_CHAVE_SECRETA
         const authHeader = request.headers.get("authorization");
-        const EXPECTED_TOKEN = process.env.N8N_SECRET_TOKEN; // Crie esta variável no .env
+        const EXPECTED_TOKEN = process.env.N8N_SECRET_TOKEN;
 
         if (EXPECTED_TOKEN && authHeader !== `Bearer ${EXPECTED_TOKEN}`) {
             return NextResponse.json({ error: "Acesso não autorizado." }, { status: 401 });
         }
 
-        if (!userId) {
-            return NextResponse.json({ error: "O parâmetro userId é obrigatório." }, { status: 400 });
+        if (!instance) {
+            return NextResponse.json({ error: "O parâmetro instance é obrigatório." }, { status: 400 });
         }
 
-        // 2. Busca o cérebro no banco de dados
+        // Busca o contexto do agente vinculado a esta instância do WhatsApp
         const agentContext = await prisma.agentContext.findUnique({
-            where: { userId },
+            where: { whatsappInstance: instance },
             select: {
                 companyName: true,
                 personality: true,
                 knowledgeBase: true,
                 isActive: true,
+                userId: true, // Retornamos o userId para o n8n usar na hora de salvar o log
             }
         });
 
         if (!agentContext) {
-            return NextResponse.json({ error: "Contexto não encontrado para este usuário." }, { status: 404 });
+            return NextResponse.json({ error: "Instância não configurada no sistema." }, { status: 404 });
         }
 
         if (!agentContext.isActive) {
-            return NextResponse.json({ error: "O Agente deste usuário está desativado." }, { status: 403 });
+            return NextResponse.json({ error: "Agente desativado." }, { status: 403 });
         }
 
-        // 3. Retorna os dados estruturados para o n8n injetar no Prompt do Gemini
         return NextResponse.json({
             success: true,
             data: agentContext,
@@ -47,6 +44,6 @@ export async function GET(request: Request) {
 
     } catch (error) {
         console.error("Erro na API do n8n:", error);
-        return NextResponse.json({ error: "Erro interno do servidor." }, { status: 500 });
+        return NextResponse.json({ error: "Erro interno." }, { status: 500 });
     }
 }
