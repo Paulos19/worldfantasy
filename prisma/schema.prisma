@@ -1,0 +1,51 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id           String        @id @default(cuid())
+  name         String?
+  email        String        @unique
+  password     String
+  role         Role          @default(USER)
+  agentContext AgentContext? // Relação 1:1 com as configurações do Agente
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  chatLogs     ChatLog[]
+}
+
+// Nova tabela que armazenará o "Cérebro" individual de cada usuário
+model AgentContext {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  companyName   String @default("World Fantasy")
+  personality   String @db.Text // Tom de voz, guardrails, diretrizes
+  knowledgeBase String @db.Text // Catálogo, preços, regras de negócio
+
+  isActive  Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+}
+
+model ChatLog {
+  id     String @id @default(cuid())
+  userId String // Relaciona ao dono do agente (lojista/admin)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  customerRef String // Número do WhatsApp ou ID do cliente
+  userMessage String @db.Text
+  botResponse String @db.Text
+
+  createdAt DateTime @default(now())
+}
