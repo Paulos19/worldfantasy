@@ -22,6 +22,7 @@ model User {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   chatLogs     ChatLog[]
+  products     Product[]
 }
 
 // Nova tabela que armazenará o "Cérebro" individual de cada usuário
@@ -50,4 +51,21 @@ model ChatLog {
   botResponse String @db.Text
 
   createdAt DateTime @default(now())
+}
+
+model Product {
+  id     String @id @default(cuid())
+  userId String // Produto pertence ao lojista
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String  @db.Text
+  price       Float // Pode usar Decimal se preferir precisão financeira rigorosa
+  imageUrl    String? // URL retornada pelo Vercel Blob
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }

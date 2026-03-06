@@ -12,7 +12,8 @@ import {
     Settings,
     LogOut,
     Sparkles,
-    Users
+    Users,
+    Package
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -26,6 +27,7 @@ interface SidebarProps {
 
 const navItems = [
     { name: "Visão Geral", href: "/dashboard", icon: LayoutDashboard },
+    { name: "Catálogo & Estoque", href: "/dashboard/catalog", icon: Package }, // <- Nova Rota
     { name: "Base de Conhecimento (RAG)", href: "/dashboard/knowledge", icon: Database },
     { name: "Logs do Agente IA", href: "/dashboard/agent-logs", icon: Bot },
     { name: "Atendimentos", href: "/dashboard/chats", icon: Users },
