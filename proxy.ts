@@ -1,25 +1,33 @@
-// middleware.ts
-import { withAuth } from "next-auth/middleware";
+import { getToken } from "next-auth/jwt";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
-export default withAuth(
-    function middleware(req) {
-        // Aqui você pode adicionar lógicas extras de roteamento se precisar no futuro
-    },
-    {
-        callbacks: {
-            authorized: ({ req, token }) => {
-                // Arquitetura defensiva: Só entra no /dashboard quem tem token E é ADMIN.
-                // Se retornar false, o Next-Auth redireciona automaticamente para a página de login.
-                if (req.nextUrl.pathname.startsWith("/dashboard")) {
-                    return token?.role === "ADMIN";
-                }
-                return !!token;
-            },
-        },
+export async function proxy(req: NextRequest) {
+    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+    const isAuth = !!token;
+    const isAuthPage =
+        req.nextUrl.pathname.startsWith("/login") ||
+        req.nextUrl.pathname.startsWith("/register");
+
+    if (isAuthPage) {
+        if (isAuth) {
+            return NextResponse.redirect(new URL("/dashboard", req.url));
+        }
+        return null;
     }
-);
 
-// Define quais rotas o middleware deve vigiar
+    if (!isAuth) {
+        let from = req.nextUrl.pathname;
+        if (req.nextUrl.search) {
+            from += req.nextUrl.search;
+        }
+
+        return NextResponse.redirect(
+            new URL(`/login?from=${encodeURIComponent(from)}`, req.url)
+        );
+    }
+}
+
 export const config = {
-    matcher: ["/dashboard/:path*"],
+    matcher: ["/dashboard/:path*", "/login", "/register"],
 };
