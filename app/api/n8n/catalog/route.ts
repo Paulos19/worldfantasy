@@ -1,3 +1,4 @@
+// app/api/n8n/catalog/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
@@ -5,13 +6,12 @@ export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const instance = searchParams.get("instance");
-        const query = searchParams.get("query") || "";
+        const query = searchParams.get("query")?.trim() || "";
 
         if (!instance) {
             return NextResponse.json({ error: "Instância não informada." }, { status: 400 });
         }
 
-        // 1. Descobrir quem é o usuário dono dessa instância
         const context = await prisma.agentContext.findUnique({
             where: { whatsappInstance: instance },
             select: { userId: true }
@@ -19,8 +19,8 @@ export async function GET(request: Request) {
 
         if (!context) return NextResponse.json({ error: "Instância não encontrada." }, { status: 404 });
 
-        // 2. Buscar produtos no estoque deste lojista que batam com a pesquisa do Gemini
-        const products = await prisma.product.findMany({
+        // 1. Tenta a busca exata (Termo pesquisado)
+        let products = await prisma.product.findMany({
             where: {
                 userId: context.userId,
                 isActive: true,
@@ -29,19 +29,32 @@ export async function GET(request: Request) {
                     { description: { contains: query, mode: "insensitive" } }
                 ]
             },
-            select: {
-                name: true,
-                description: true,
-                price: true,
-                imageUrl: true, // A IA pode devolver esse link na resposta para o cliente ver a foto!
-            },
-            take: 5 // Limita para não estourar os tokens do prompt do Gemini
+            select: { name: true, description: true, price: true, imageUrl: true },
+            take: 5
         });
+
+        // 2. O Pulo do Gato (Fallback Inteligente)
+        // Se não achou NADA com o termo pesquisado, busca os últimos 5 produtos do estoque
+        if (products.length === 0 && query !== "") {
+            const fallbackProducts = await prisma.product.findMany({
+                where: { userId: context.userId, isActive: true },
+                orderBy: { createdAt: "desc" },
+                select: { name: true, description: true, price: true, imageUrl: true },
+                take: 5
+            });
+
+            return NextResponse.json({
+                success: true,
+                results: fallbackProducts,
+                // Mandamos uma mensagem secreta para a IA ler junto com os resultados
+                system_instruction: `Nenhum produto exato encontrado para '${query}'. O sistema retornou o estoque geral. Analise se algum destes produtos pertence à mesma franquia solicitada (Ex: Darth Vader pertence a Star Wars) e ofereça ao cliente.`
+            });
+        }
 
         return NextResponse.json({
             success: true,
             results: products,
-            message: products.length > 0 ? "Produtos encontrados no estoque." : "Nenhum produto encontrado com este termo."
+            system_instruction: "Produtos encontrados com sucesso. Apresente-os ao cliente com entusiasmo e as URLs das imagens."
         });
 
     } catch (error) {
