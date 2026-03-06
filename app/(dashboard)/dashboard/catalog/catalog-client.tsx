@@ -3,9 +3,9 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, X, Image as ImageIcon, Loader2, Package } from "lucide-react";
+import { Plus, X, Image as ImageIcon, Loader2, Package, Pencil, Trash2 } from "lucide-react";
 import Image from "next/image";
-import { createProduct } from "./actions"; // A Server Action que criamos no passo anterior
+import { createProduct, updateProduct, deleteProduct } from "./actions";
 
 // Tipagem baseada no schema do Prisma
 type Product = {
@@ -32,7 +32,13 @@ export function CatalogClient({ initialProducts }: { initialProducts: Product[] 
     const [isPending, setIsPending] = useState(false);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-    // Tratamento visual para o upload da imagem no formulário
+    // States para edição e exclusão
+    const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+    const [editPreviewUrl, setEditPreviewUrl] = useState<string | null>(null);
+    const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    // Tratamento visual para o upload da imagem no formulário de criação
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
@@ -40,7 +46,15 @@ export function CatalogClient({ initialProducts }: { initialProducts: Product[] 
         }
     };
 
-    const handleAction = async (formData: FormData) => {
+    // Tratamento visual para o upload da imagem no formulário de edição
+    const handleEditImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setEditPreviewUrl(URL.createObjectURL(file));
+        }
+    };
+
+    const handleCreate = async (formData: FormData) => {
         setIsPending(true);
         const result = await createProduct(formData);
 
@@ -48,9 +62,40 @@ export function CatalogClient({ initialProducts }: { initialProducts: Product[] 
             setIsModalOpen(false);
             setPreviewUrl(null);
         } else {
-            alert(result.error); // Em produção, usaríamos um Toast nativo estiloso aqui
+            alert(result.error);
         }
         setIsPending(false);
+    };
+
+    const handleUpdate = async (formData: FormData) => {
+        setIsPending(true);
+        const result = await updateProduct(formData);
+
+        if (result.success) {
+            setEditingProduct(null);
+            setEditPreviewUrl(null);
+        } else {
+            alert(result.error);
+        }
+        setIsPending(false);
+    };
+
+    const handleDelete = async () => {
+        if (!deletingProduct) return;
+        setIsDeleting(true);
+        const result = await deleteProduct(deletingProduct.id);
+
+        if (result.success) {
+            setDeletingProduct(null);
+        } else {
+            alert(result.error);
+        }
+        setIsDeleting(false);
+    };
+
+    const openEdit = (product: Product) => {
+        setEditingProduct(product);
+        setEditPreviewUrl(product.imageUrl);
     };
 
     return (
@@ -78,7 +123,7 @@ export function CatalogClient({ initialProducts }: { initialProducts: Product[] 
             ) : (
                 <motion.div variants={staggerContainer} initial="hidden" animate="show" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {initialProducts.map((product) => (
-                        <motion.div key={product.id} variants={cardVariant} className="glass rounded-2xl overflow-hidden border border-white/10 group cursor-pointer hover:border-primary/50 transition-colors">
+                        <motion.div key={product.id} variants={cardVariant} className="glass rounded-2xl overflow-hidden border border-white/10 group cursor-pointer hover:border-primary/50 transition-colors relative">
                             <div className="relative h-56 w-full bg-black/50 overflow-hidden">
                                 {product.imageUrl ? (
                                     <Image
@@ -93,6 +138,25 @@ export function CatalogClient({ initialProducts }: { initialProducts: Product[] 
                                     </div>
                                 )}
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-80" />
+
+                                {/* Botões de ação no hover */}
+                                <div className="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
+                                    <button
+                                        onClick={() => openEdit(product)}
+                                        className="w-9 h-9 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white hover:bg-primary/80 hover:border-primary transition-all duration-200 shadow-lg"
+                                        title="Editar"
+                                    >
+                                        <Pencil className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        onClick={() => setDeletingProduct(product)}
+                                        className="w-9 h-9 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white hover:bg-red-500/80 hover:border-red-500 transition-all duration-200 shadow-lg"
+                                        title="Excluir"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                </div>
+
                                 <div className="absolute bottom-4 left-4 right-4 flex justify-between items-end">
                                     <h3 className="text-white font-bold text-lg truncate drop-shadow-md">{product.name}</h3>
                                     <span className="bg-primary/90 backdrop-blur-sm text-white px-3 py-1 rounded-lg text-sm font-bold shadow-xl">
@@ -110,7 +174,7 @@ export function CatalogClient({ initialProducts }: { initialProducts: Product[] 
                 </motion.div>
             )}
 
-            {/* Modal de Criação (Backdrop Animado + Glass Modal) */}
+            {/* ========== Modal de Criação ========== */}
             <AnimatePresence>
                 {isModalOpen && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
@@ -131,7 +195,7 @@ export function CatalogClient({ initialProducts }: { initialProducts: Product[] 
 
                             <h2 className="text-2xl font-bold text-white mb-6 tracking-tight">Novo Produto</h2>
 
-                            <form action={handleAction} className="space-y-5">
+                            <form action={handleCreate} className="space-y-5">
                                 {/* Upload de Imagem Visual */}
                                 <div className="relative h-40 w-full bg-black/40 border-2 border-dashed border-white/20 rounded-2xl flex flex-col items-center justify-center overflow-hidden group hover:border-primary/50 transition-colors cursor-pointer">
                                     <input type="file" name="image" accept="image/*" required onChange={handleImageChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" />
@@ -166,6 +230,114 @@ export function CatalogClient({ initialProducts }: { initialProducts: Product[] 
                                     </button>
                                 </div>
                             </form>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* ========== Modal de Edição ========== */}
+            <AnimatePresence>
+                {editingProduct && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+                        <motion.div
+                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                            onClick={() => { setEditingProduct(null); setEditPreviewUrl(null); }}
+                            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                        />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            className="glass relative w-full max-w-lg rounded-3xl border border-white/10 p-8 shadow-2xl z-10"
+                        >
+                            <button onClick={() => { setEditingProduct(null); setEditPreviewUrl(null); }} className="absolute top-6 right-6 text-gray-400 hover:text-white transition-colors">
+                                <X className="w-6 h-6" />
+                            </button>
+
+                            <h2 className="text-2xl font-bold text-white mb-6 tracking-tight">Editar Produto</h2>
+
+                            <form action={handleUpdate} className="space-y-5">
+                                <input type="hidden" name="id" value={editingProduct.id} />
+                                <input type="hidden" name="existingImageUrl" value={editingProduct.imageUrl || ""} />
+
+                                {/* Upload de Imagem (opcional na edição) */}
+                                <div className="relative h-40 w-full bg-black/40 border-2 border-dashed border-white/20 rounded-2xl flex flex-col items-center justify-center overflow-hidden group hover:border-primary/50 transition-colors cursor-pointer">
+                                    <input type="file" name="image" accept="image/*" onChange={handleEditImageChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" />
+                                    {editPreviewUrl ? (
+                                        <Image src={editPreviewUrl} alt="Preview" fill className="object-cover opacity-60 group-hover:opacity-40 transition-opacity" />
+                                    ) : (
+                                        <>
+                                            <ImageIcon className="w-8 h-8 text-gray-500 mb-2 group-hover:text-primary transition-colors" />
+                                            <span className="text-sm font-medium text-gray-400 group-hover:text-white transition-colors">Clique para trocar a foto</span>
+                                        </>
+                                    )}
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Nome da Peça</label>
+                                    <input name="name" type="text" required defaultValue={editingProduct.name} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary/50 outline-none transition-all" />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Descrição Detalhada</label>
+                                    <textarea name="description" required rows={3} defaultValue={editingProduct.description} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary/50 outline-none transition-all resize-none text-sm" />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Preço (R$)</label>
+                                    <input name="price" type="number" step="0.01" required defaultValue={editingProduct.price} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary/50 outline-none transition-all" />
+                                </div>
+
+                                <div className="pt-4">
+                                    <button disabled={isPending} type="submit" className="w-full bg-white text-black font-bold py-3.5 rounded-xl hover:bg-gray-200 transition-all flex items-center justify-center gap-2 disabled:opacity-70">
+                                        {isPending ? <Loader2 className="animate-spin w-5 h-5" /> : "Salvar Alterações"}
+                                    </button>
+                                </div>
+                            </form>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* ========== Modal de Exclusão ========== */}
+            <AnimatePresence>
+                {deletingProduct && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+                        <motion.div
+                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                            onClick={() => setDeletingProduct(null)}
+                            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                        />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            className="glass relative w-full max-w-sm rounded-3xl border border-white/10 p-8 shadow-2xl z-10 text-center"
+                        >
+                            <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-5">
+                                <Trash2 className="w-8 h-8 text-red-400" />
+                            </div>
+
+                            <h2 className="text-xl font-bold text-white mb-2 tracking-tight">Excluir Produto</h2>
+                            <p className="text-gray-400 text-sm mb-6">
+                                Tem certeza que deseja excluir <span className="text-white font-semibold">&quot;{deletingProduct.name}&quot;</span>? Essa ação não pode ser desfeita.
+                            </p>
+
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setDeletingProduct(null)}
+                                    className="flex-1 bg-white/5 border border-white/10 text-white font-bold py-3 rounded-xl hover:bg-white/10 transition-all"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleDelete}
+                                    disabled={isDeleting}
+                                    className="flex-1 bg-red-500 text-white font-bold py-3 rounded-xl hover:bg-red-600 transition-all flex items-center justify-center gap-2 disabled:opacity-70"
+                                >
+                                    {isDeleting ? <Loader2 className="animate-spin w-5 h-5" /> : "Excluir"}
+                                </button>
+                            </div>
                         </motion.div>
                     </div>
                 )}

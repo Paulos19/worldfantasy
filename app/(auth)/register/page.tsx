@@ -56,6 +56,17 @@ export default function RegisterPage() {
                 </div>
 
                 <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-300">WhatsApp (com DDD)</label>
+                    <input
+                        name="phone"
+                        type="tel"
+                        required
+                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+                        placeholder="5511999999999"
+                    />
+                </div>
+
+                <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-300">E-mail Corporativo</label>
                     <input
                         name="email"

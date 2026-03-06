@@ -37,6 +37,7 @@ export const authOptions: NextAuthOptions = {
                     name: user.name,
                     email: user.email,
                     role: user.role,
+                    phone: user.phone,
                 };
             }
         })
@@ -50,17 +51,16 @@ export const authOptions: NextAuthOptions = {
             // Quando o usuário faz login, injetamos os dados no token
             if (user) {
                 token.id = user.id;
-                // Fazemos o cast explícito para a união de tipos esperada
                 token.role = user.role as "ADMIN" | "USER";
+                token.phone = user.phone;
             }
             return token;
         },
         async session({ session, token }) {
-            // Transferimos os dados do token JWT para a sessão no client
             if (session.user) {
                 session.user.id = token.id as string;
-                // Garantimos ao TypeScript que o valor é exatamente o que a interface pede
                 session.user.role = token.role as "ADMIN" | "USER";
+                session.user.phone = token.phone as string | null;
             }
             return session;
         }

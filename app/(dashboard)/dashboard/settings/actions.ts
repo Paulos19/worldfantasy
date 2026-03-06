@@ -23,3 +23,24 @@ export async function updateInstance(formData: FormData) {
         return { error: "Erro ao atualizar instância." };
     }
 }
+
+export async function updatePhone(formData: FormData) {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) return { error: "Não autorizado." };
+
+    const phone = formData.get("phone") as string;
+
+    if (!phone) return { error: "Informe o número de telefone." };
+
+    try {
+        await prisma.user.update({
+            where: { id: session.user.id },
+            data: { phone },
+        });
+
+        revalidatePath("/dashboard/settings");
+        return { success: "Telefone atualizado com sucesso!" };
+    } catch (error) {
+        return { error: "Erro ao atualizar telefone." };
+    }
+}

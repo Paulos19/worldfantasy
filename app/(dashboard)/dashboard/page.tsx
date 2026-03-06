@@ -1,55 +1,96 @@
-// app/dashboard/page.tsx
-"use client";
+// app/(dashboard)/dashboard/page.tsx
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { redirect } from "next/navigation";
+import { DashboardClient } from "./dashboard-client";
 
-import { motion, Variants } from "framer-motion";
-import { BrainCircuit, Database, MessageSquare, Zap } from "lucide-react";
+export default async function DashboardPage() {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) redirect("/login");
 
-const stats = [
-    { title: "Vetores Armazenados", value: "0", icon: Database, color: "text-blue-400" },
-    { title: "Atendimentos IA", value: "0", icon: MessageSquare, color: "text-purple-400" },
-    { title: "Taxa de Resolução", value: "100%", icon: Zap, color: "text-yellow-400" },
-    { title: "Status do Agente", value: "Aguardando", icon: BrainCircuit, color: "text-emerald-400" },
-];
+    const userId = session.user.id;
 
-const container: Variants = {
-    hidden: { opacity: 0 },
-    show: { opacity: 1, transition: { staggerChildren: 0.1 } }
-};
+    // Busca todas as métricas em paralelo para performance máxima
+    const [
+        totalProducts,
+        activeProducts,
+        totalMessages,
+        todayMessages,
+        uniqueConversations,
+        agentContext,
+        recentChatLogs,
+        topProducts,
+    ] = await Promise.all([
+        // Total de produtos
+        prisma.product.count({ where: { userId } }),
 
-const itemVariant: Variants = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
-};
+        // Produtos ativos
+        prisma.product.count({ where: { userId, isActive: true } }),
 
-export default function DashboardPage() {
-    return (
-        <motion.div variants={container} initial="hidden" animate="show" className="space-y-8">
-            <motion.div variants={itemVariant} className="space-y-2">
-                <h1 className="text-3xl font-extrabold tracking-tight text-white">Visão Geral</h1>
-                <p className="text-gray-400">Monitore a performance e o conhecimento do seu Agente IA.</p>
-            </motion.div>
+        // Total de mensagens trocadas (cada ChatLog = 1 par de mensagem)
+        prisma.chatLog.count({ where: { userId } }),
 
-            <motion.div variants={container} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {stats.map((stat, i) => {
-                    const Icon = stat.icon;
-                    return (
-                        <motion.div key={i} variants={itemVariant} className="glass p-6 rounded-2xl relative overflow-hidden group">
-                            {/* Efeito hover luminoso interno */}
-                            <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+        // Mensagens de hoje
+        prisma.chatLog.count({
+            where: {
+                userId,
+                createdAt: {
+                    gte: new Date(new Date().setHours(0, 0, 0, 0)),
+                },
+            },
+        }),
 
-                            <div className="flex justify-between items-start relative z-10">
-                                <div className="space-y-4">
-                                    <span className="text-sm font-medium text-gray-400">{stat.title}</span>
-                                    <p className="text-4xl font-bold text-white tracking-tight">{stat.value}</p>
-                                </div>
-                                <div className={`p-3 rounded-xl bg-black/30 border border-white/5 ${stat.color}`}>
-                                    <Icon className="w-6 h-6" />
-                                </div>
-                            </div>
-                        </motion.div>
-                    );
-                })}
-            </motion.div>
-        </motion.div>
-    );
+        // Conversas únicas (customerRef distintos)
+        prisma.chatLog.findMany({
+            where: { userId },
+            distinct: ["customerRef"],
+            select: { customerRef: true },
+        }),
+
+        // Status do Agente (contexto IA)
+        prisma.agentContext.findUnique({
+            where: { userId },
+            select: { isActive: true, companyName: true },
+        }),
+
+        // Últimas 5 conversas (mais recentes por customerRef)
+        prisma.chatLog.findMany({
+            where: { userId },
+            orderBy: { createdAt: "desc" },
+            distinct: ["customerRef"],
+            take: 5,
+            select: {
+                customerRef: true,
+                userMessage: true,
+                createdAt: true,
+            },
+        }),
+
+        // Top 5 produtos (mais recentes)
+        prisma.product.findMany({
+            where: { userId, isActive: true },
+            orderBy: { createdAt: "desc" },
+            take: 5,
+            select: { name: true, price: true },
+        }),
+    ]);
+
+    const data = {
+        totalProducts,
+        activeProducts,
+        totalConversations: uniqueConversations.length,
+        totalMessages,
+        todayMessages,
+        agentActive: agentContext?.isActive ?? false,
+        companyName: agentContext?.companyName ?? "Não configurado",
+        recentChats: recentChatLogs.map((log) => ({
+            customerRef: log.customerRef,
+            lastMessage: log.userMessage,
+            createdAt: log.createdAt.toISOString(),
+        })),
+        topProducts,
+    };
+
+    return <DashboardClient data={data} />;
 }

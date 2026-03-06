@@ -13,16 +13,18 @@ enum Role {
 }
 
 model User {
-  id           String        @id @default(cuid())
-  name         String?
-  email        String        @unique
-  password     String
-  role         Role          @default(USER)
-  agentContext AgentContext? // Relação 1:1 com as configurações do Agente
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  chatLogs     ChatLog[]
-  products     Product[]
+  id                  String               @id @default(cuid())
+  name                String?
+  email               String               @unique
+  phone               String? // Número WhatsApp do admin (ex: 5511999999999)
+  password            String
+  role                Role                 @default(USER)
+  agentContext        AgentContext? // Relação 1:1 com as configurações do Agente
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  chatLogs            ChatLog[]
+  products            Product[]
+  promptOptimizations PromptOptimization[]
 }
 
 // Nova tabela que armazenará o "Cérebro" individual de cada usuário
@@ -66,6 +68,22 @@ model Product {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model PromptOptimization {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  originalPrompt  String  @db.Text
+  clientRequest   String  @db.Text
+  evaluation      String  @db.Text
+  optimizedPrompt String  @db.Text
+  sentViaWhatsApp Boolean @default(false)
+
+  createdAt DateTime @default(now())
 
   @@index([userId])
 }

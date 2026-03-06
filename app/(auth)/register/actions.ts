@@ -9,8 +9,9 @@ export async function registerAdmin(formData: FormData) {
     const name = formData.get("name") as string;
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
+    const phone = formData.get("phone") as string;
 
-    if (!email || !password || !name) {
+    if (!email || !password || !name || !phone) {
         return { error: "Todos os campos são obrigatórios." };
     }
 
@@ -34,8 +35,9 @@ export async function registerAdmin(formData: FormData) {
             data: {
                 name,
                 email,
+                phone,
                 password: hashedPassword,
-                role: "ADMIN", // Forçando ADMIN conforme seu escopo inicial
+                role: "ADMIN",
             },
         });
 
