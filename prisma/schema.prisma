@@ -36,11 +36,13 @@ model AgentContext {
   // Novo campo: O nome exato da instância na Evolution API (Ex: "Henrique")
   whatsappInstance String? @unique
 
-  companyName   String   @default("World Fantasy")
-  personality   String   @db.Text
-  knowledgeBase String   @db.Text
-  isActive      Boolean  @default(true)
-  updatedAt     DateTime @updatedAt
+  companyName       String   @default("World Fantasy")
+  personality       String   @db.Text
+  knowledgeBase     String   @db.Text
+  storeCep          String?
+  baseShippingPrice Float?   @default(0)
+  isActive          Boolean  @default(true)
+  updatedAt         DateTime @updatedAt
 }
 
 model ChatLog {

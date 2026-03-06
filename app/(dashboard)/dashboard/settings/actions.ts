@@ -44,3 +44,26 @@ export async function updatePhone(formData: FormData) {
         return { error: "Erro ao atualizar telefone." };
     }
 }
+
+export async function updateShippingSettings(formData: FormData) {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) return { error: "Não autorizado." };
+
+    const storeCep = formData.get("storeCep") as string;
+    const baseShippingPrice = parseFloat(formData.get("baseShippingPrice") as string);
+
+    if (!storeCep) return { error: "O CEP da loja é obrigatório." };
+    if (isNaN(baseShippingPrice) || baseShippingPrice < 0) return { error: "Preço base inválido." };
+
+    try {
+        await prisma.agentContext.update({
+            where: { userId: session.user.id },
+            data: { storeCep, baseShippingPrice },
+        });
+
+        revalidatePath("/dashboard/settings");
+        return { success: "Configurações de frete salvas com sucesso!" };
+    } catch (error) {
+        return { error: "Erro ao atualizar configurações de frete." };
+    }
+}

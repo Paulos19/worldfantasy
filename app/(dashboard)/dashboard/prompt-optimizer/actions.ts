@@ -143,3 +143,91 @@ ${optimizedPrompt}
 ━━━━━━━━━━━━━━━━━━━
 _Gerado automaticamente pelo Otimizador de Prompts — World Fantasy_`;
 }
+
+/**
+ * Envia manualmente uma otimização via WhatsApp
+ */
+export async function sendWhatsAppAction(optimizationId: string) {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) return { error: "Não autorizado." };
+
+    const user = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { phone: true, name: true },
+    });
+
+    if (!user?.phone) {
+        return { error: "Configure seu telefone em Configurações antes de enviar." };
+    }
+
+    const optimization = await prisma.promptOptimization.findFirst({
+        where: { id: optimizationId, userId: session.user.id },
+    });
+
+    if (!optimization) return { error: "Otimização não encontrada." };
+
+    try {
+        const whatsappWebhookUrl = process.env.N8N_WHATSAPP_SEND_WEBHOOK || "https://seun8n.com/webhook/send-whatsapp";
+
+        const message = formatWhatsAppMessage(
+            user.name || "Admin",
+            optimization.evaluation,
+            optimization.optimizedPrompt
+        );
+
+        await fetch(whatsappWebhookUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${process.env.N8N_SECRET_TOKEN || ""}`
+            },
+            body: JSON.stringify({
+                source: "prompt-optimizer",
+                phone: user.phone,
+                message,
+                optimizationId: optimization.id,
+            }),
+            cache: "no-store",
+        });
+
+        await prisma.promptOptimization.update({
+            where: { id: optimizationId },
+            data: { sentViaWhatsApp: true },
+        });
+
+        return { success: "Mensagem enviada via WhatsApp!" };
+    } catch (error) {
+        console.error("Erro ao enviar WhatsApp:", error);
+        return { error: "Falha ao enviar via WhatsApp." };
+    }
+}
+
+/**
+ * Busca o histórico de otimizações do usuário logado
+ */
+export async function getOptimizationHistory() {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) return [];
+
+    try {
+        const history = await prisma.promptOptimization.findMany({
+            where: { userId: session.user.id },
+            orderBy: { createdAt: "desc" },
+            take: 20, // Trazemos as 20 mais recentes para não pesar
+        });
+
+        // Retornamos os dados limpos e serializáveis
+        return history.map(item => ({
+            id: item.id,
+            originalPrompt: item.originalPrompt,
+            clientRequest: item.clientRequest,
+            evaluation: item.evaluation,
+            optimizedPrompt: item.optimizedPrompt,
+            sentViaWhatsApp: item.sentViaWhatsApp,
+            createdAt: item.createdAt.toISOString(),
+        }));
+    } catch (error) {
+        console.error("Erro ao buscar histórico:", error);
+        return [];
+    }
+}

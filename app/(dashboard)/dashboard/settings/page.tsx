@@ -1,15 +1,17 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Smartphone, CheckCircle2, Loader2, Settings2, Phone, AlertTriangle } from "lucide-react";
+import { Smartphone, CheckCircle2, Loader2, Settings2, Phone, AlertTriangle, Truck } from "lucide-react";
 import { useState } from "react";
-import { updateInstance, updatePhone } from "./actions";
+import { updateInstance, updatePhone, updateShippingSettings } from "./actions";
 
 export default function SettingsPage() {
     const [isPendingInstance, setIsPendingInstance] = useState(false);
     const [isPendingPhone, setIsPendingPhone] = useState(false);
+    const [isPendingShipping, setIsPendingShipping] = useState(false);
     const [feedbackInstance, setFeedbackInstance] = useState<{ type: "success" | "error", msg: string } | null>(null);
     const [feedbackPhone, setFeedbackPhone] = useState<{ type: "success" | "error", msg: string } | null>(null);
+    const [feedbackShipping, setFeedbackShipping] = useState<{ type: "success" | "error", msg: string } | null>(null);
 
     async function handleInstanceAction(formData: FormData) {
         setIsPendingInstance(true);
@@ -27,6 +29,15 @@ export default function SettingsPage() {
         if (result.error) setFeedbackPhone({ type: "error", msg: result.error });
         if (result.success) setFeedbackPhone({ type: "success", msg: result.success });
         setIsPendingPhone(false);
+    }
+
+    async function handleShippingAction(formData: FormData) {
+        setIsPendingShipping(true);
+        setFeedbackShipping(null);
+        const result = await updateShippingSettings(formData);
+        if (result.error) setFeedbackShipping({ type: "error", msg: result.error });
+        if (result.success) setFeedbackShipping({ type: "success", msg: result.success });
+        setIsPendingShipping(false);
     }
 
     return (
@@ -109,6 +120,58 @@ export default function SettingsPage() {
 
                     <button disabled={isPendingInstance} type="submit" className="bg-white text-black font-bold py-3 px-8 rounded-xl hover:bg-gray-200 transition-all flex items-center gap-2 disabled:opacity-70">
                         {isPendingInstance ? <Loader2 className="animate-spin w-5 h-5" /> : "Salvar Conexão"}
+                    </button>
+                </form>
+            </motion.div>
+
+            {/* Seção: Cálculo de Frete Dinâmico */}
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="glass p-8 rounded-3xl border border-white/5">
+                <div className="flex items-center gap-4 mb-6 pb-6 border-b border-white/5">
+                    <div className="p-3 bg-blue-500/10 rounded-xl">
+                        <Truck className="w-6 h-6 text-blue-400" />
+                    </div>
+                    <div>
+                        <h2 className="text-xl font-bold text-white">Cálculo de Frete Dinâmico</h2>
+                        <p className="text-sm text-gray-400">Usado pela IA para gerar precificações precisas ao cotar para novos clientes.</p>
+                    </div>
+                </div>
+
+                <form action={handleShippingAction} className="space-y-6">
+                    <div className="flex flex-col md:flex-row gap-6">
+                        <div className="space-y-2 flex-1">
+                            <label className="text-sm font-semibold text-gray-300">CEP de Origem (Sua Loja)</label>
+                            <input
+                                name="storeCep"
+                                type="text"
+                                required
+                                className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary/50 transition-all"
+                                placeholder="01001-000"
+                            />
+                        </div>
+
+                        <div className="space-y-2 flex-1">
+                            <label className="text-sm font-semibold text-gray-300">Preço Base do Frete (R$)</label>
+                            <input
+                                name="baseShippingPrice"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                required
+                                className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary/50 transition-all"
+                                placeholder="15.00"
+                            />
+                        </div>
+                    </div>
+
+                    {feedbackShipping && (
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`p-4 rounded-xl max-w-md flex items-center gap-3 border ${feedbackShipping.type === "success" ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-red-500/10 border-red-500/20 text-red-400"}`}>
+                            {feedbackShipping.type === "success" ? <CheckCircle2 className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
+                            <span className="font-medium text-sm">{feedbackShipping.msg}</span>
+                        </motion.div>
+                    )}
+
+                    <button disabled={isPendingShipping} type="submit" className="bg-white text-black font-bold py-3 px-8 rounded-xl hover:bg-gray-200 transition-all flex items-center gap-2 disabled:opacity-70">
+                        {isPendingShipping ? <Loader2 className="animate-spin w-5 h-5" /> : "Salvar Frete"}
                     </button>
                 </form>
             </motion.div>
