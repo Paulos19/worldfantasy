@@ -165,7 +165,7 @@ export function OptimizerClient({ initialHistory }: { initialHistory: Optimizati
                                 {isPending ? (
                                     <>
                                         <Loader2 className="animate-spin w-4 h-4" />
-                                        <span className="text-sm">Processando (~20s)...</span>
+                                        <span className="text-sm">Iniciando Refatoração...</span>
                                     </>
                                 ) : (
                                     <>

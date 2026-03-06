@@ -61,7 +61,13 @@ export async function optimizePromptAction(formData: FormData) {
         // 3. Busca o telefone do admin para enviar via WhatsApp
         const user = await prisma.user.findUnique({
             where: { id: session.user.id },
-            select: { phone: true, name: true },
+            select: {
+                phone: true,
+                name: true,
+                agentContext: {
+                    select: { whatsappInstance: true }
+                }
+            },
         });
 
         let whatsappSent = false;
@@ -77,7 +83,7 @@ export async function optimizePromptAction(formData: FormData) {
                     data.optimizedPrompt
                 );
 
-                await fetch(whatsappWebhookUrl, {
+                const waResponse = await fetch(whatsappWebhookUrl, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
@@ -88,15 +94,23 @@ export async function optimizePromptAction(formData: FormData) {
                         phone: user.phone,
                         message,
                         optimizationId: optimization.id,
+                        instance: user.agentContext?.whatsappInstance || "Henrique"
                     }),
                     cache: "no-store",
                 });
 
-                // Marca como enviado via WhatsApp
-                await prisma.promptOptimization.update({
-                    where: { id: optimization.id },
-                    data: { sentViaWhatsApp: true },
-                });
+                if (!waResponse.ok) {
+                    const text = await waResponse.text();
+                    console.error("Erro no disparo do WhatsApp (Webhook n8n):", waResponse.status, text);
+                    // Não lança exceção para não quebrar o fluxo principal de salvar a otimização
+                } else {
+                    // Marca como enviado via WhatsApp
+                    await prisma.promptOptimization.update({
+                        where: { id: optimization.id },
+                        data: { sentViaWhatsApp: true },
+                    });
+                    whatsappSent = true;
+                }
 
                 whatsappSent = true;
             } catch (whatsappError) {
@@ -153,7 +167,13 @@ export async function sendWhatsAppAction(optimizationId: string) {
 
     const user = await prisma.user.findUnique({
         where: { id: session.user.id },
-        select: { phone: true, name: true },
+        select: {
+            phone: true,
+            name: true,
+            agentContext: {
+                select: { whatsappInstance: true }
+            }
+        },
     });
 
     if (!user?.phone) {
@@ -175,7 +195,7 @@ export async function sendWhatsAppAction(optimizationId: string) {
             optimization.optimizedPrompt
         );
 
-        await fetch(whatsappWebhookUrl, {
+        const response = await fetch(whatsappWebhookUrl, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -186,9 +206,16 @@ export async function sendWhatsAppAction(optimizationId: string) {
                 phone: user.phone,
                 message,
                 optimizationId: optimization.id,
+                instance: user.agentContext?.whatsappInstance || "Henrique"
             }),
             cache: "no-store",
         });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error("Erro ao enviar para n8n:", response.status, errorText);
+            return { error: `Erro no Webhook n8n: ${response.status} - ${errorText.substring(0, 50)}` };
+        }
 
         await prisma.promptOptimization.update({
             where: { id: optimizationId },
